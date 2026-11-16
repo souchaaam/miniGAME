@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>素因数分解アタック</title>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #0f172a;
+    color: #f8fafc;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    user-select: none;
+  }
+  .header {
+    display: flex;
+    gap: 30px;
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: #94a3b8;
+  }
+  .header strong {
+    color: #38bdf8;
+    font-size: 24px;
+  }
+  .target-box {
+    background-color: #1e293b;
+    border: 2px solid #334155;
+    border-radius: 16px;
+    width: 280px;
+    height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 25px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    transition: transform 0.1s, border-color 0.2s;
+  }
+  .target-number {
+    font-size: 56px;
+    font-weight: bold;
+    letter-spacing: 2px;
+  }
+  .history {
+    font-size: 14px;
+    color: #94a3b8;
+    height: 20px;
+    margin-top: 5px;
+  }
+  .primes-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 85px);
+    gap: 12px;
+  }
+  .prime-btn {
+    padding: 16px 0;
+    font-size: 22px;
+    font-weight: bold;
+    background-color: #1e293b;
+    color: #f8fafc;
+    border: 2px solid #38bdf8;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background-color 0.15s, transform 0.1s;
+  }
+  .prime-btn:hover {
+    background-color: #0284c7;
+  }
+  .prime-btn:active {
+    transform: scale(0.94);
+  }
+  .prime-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  #startBtn {
+    margin-top: 25px;
+    padding: 12px 32px;
+    font-size: 18px;
+    font-weight: bold;
+    background-color: #10b981;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #startBtn:hover {
+    background-color: #059669;
+  }
+  /* アニメーション用 */
+  .shake {
+    animation: shake 0.3s;
+    border-color: #ef4444 !important;
+  }
+  .clear-flash {
+    border-color: #10b981 !important;
+    transform: scale(1.05);
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    50% { transform: translateX(8px); }
+    75% { transform: translateX(-8px); }
+  }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <span>残り時間: <strong id="time">60</strong>秒</span>
+    <span>スコア: <strong id="score">0</strong></span>
+  </div>
+
+  <div class="target-box" id="targetBox">
+    <div class="target-number" id="targetNum">START</div>
+    <div class="history" id="history">素数ボタンで割り切ろう</div>
+  </div>
+
+  <div class="primes-grid" id="primesGrid"></div>
+
+  <button id="startBtn" onclick="startGame()">ゲームスタート</button>
+
+<script>
+  const primes = [2, 3, 5, 7, 11, 13];
+  let currentNum = 0;
+  let originalNum = 0;
+  let factors = [];
+  let score = 0;
+  let timeLeft = 60;
+  let timerId = null;
+  let isPlaying = false;
+
+  const targetNumEl = document.getElementById("targetNum");
+  const targetBoxEl = document.getElementById("targetBox");
+  const historyEl = document.getElementById("history");
+  const scoreEl = document.getElementById("score");
+  const timeEl = document.getElementById("time");
+  const primesGridEl = document.getElementById("primesGrid");
+  const startBtn = document.getElementById("startBtn");
+
+  // 素数ボタンの生成
+  function createButtons() {
+    primesGridEl.innerHTML = "";
+    primes.forEach(p => {
+      const btn = document.createElement("button");
+      btn.className = "prime-btn";
+      btn.textContent = `÷ ${p}`;
+      btn.disabled = true;
+      btn.onclick = () => divideBy(p);
+      primesGridEl.appendChild(btn);
+    });
+  }
+
+  // 新しい問題の生成（スコアに応じて少しずつ桁数を増やす）
+  function nextQuestion() {
+    const factorCount = Math.min(2 + Math.floor(score / 30), 5);
+    let num = 1;
+    for (let i = 0; i < factorCount; i++) {
+      // 難易度調整（序盤は小さい素数が出やすい）
+      const maxIndex = score < 30 ? 4 : primes.length;
+      const p = primes[Math.floor(Math.random() * maxIndex)];
+      num *= p;
+    }
+    currentNum = num;
+    originalNum = num;
+    factors = [];
+    targetNumEl.textContent = currentNum;
+    historyEl.textContent = "";
+  }
+
+  // 割り算処理
+  function divideBy(p) {
+    if (!isPlaying) return;
+
+    if (currentNum % p === 0) {
+      currentNum /= p;
+      factors.push(p);
+      targetNumEl.textContent = currentNum;
+      historyEl.textContent = `${originalNum} = ` + factors.join(" × ");
+
+      // 1になったらクリア
+      if (currentNum === 1) {
+        score += 10;
+        scoreEl.textContent = score;
+        targetBoxEl.classList.add("clear-flash");
+        setTimeout(() => targetBoxEl.classList.remove("clear-flash"), 200);
+        setTimeout(nextQuestion, 250);
+      }
+    } else {
+      // 割り切れない場合のペナルティ（時間-2秒＆揺れる演出）
+      timeLeft = Math.max(0, timeLeft - 2);
+      timeEl.textContent = timeLeft;
+      targetBoxEl.classList.remove("shake");
+      void targetBoxEl.offsetWidth; // リフローでアニメーション再発火
+      targetBoxEl.classList.add("shake");
+      if (timeLeft === 0) endGame();
+    }
+  }
+
+  function startGame() {
+    score = 0;
+    timeLeft = 60;
+    isPlaying = true;
+    scoreEl.textContent = score;
+    timeEl.textContent = timeLeft;
+    startBtn.style.display = "none";
+
+    document.querySelectorAll(".prime-btn").forEach(b => b.disabled = false);
+    nextQuestion();
+
+    clearInterval(timerId);
+    timerId = setInterval(() => {
+      timeLeft--;
+      timeEl.textContent = timeLeft;
+      if (timeLeft <= 0) {
+        endGame();
+      }
+    }, 1000);
+  }
+
+  function endGame() {
+    isPlaying = false;
+    clearInterval(timerId);
+    targetNumEl.textContent = "TIME UP";
+    historyEl.textContent = `最終スコア: ${score} 点`;
+    document.querySelectorAll(".prime-btn").forEach(b => b.disabled = true);
+    startBtn.textContent = "もう一度遊ぶ";
+    startBtn.style.display = "inline-block";
+  }
+
+  // キーボード操作にも対応（2, 3, 5, 7キーなどで直感的に押せる）
+  document.addEventListener("keydown", (e) => {
+    if (!isPlaying) return;
+    const keyMap = { "2": 2, "3": 3, "5": 5, "7": 7, "1": 11, "q": 13 };
+    if (keyMap[e.key]) divideBy(keyMap[e.key]);
+  });
+
+  createButtons();
+</script>
+</body>
+</html>
